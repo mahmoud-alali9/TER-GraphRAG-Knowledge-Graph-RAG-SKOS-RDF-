@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+
+  fuseki:
+    image: stain/jena-fuseki:5.0.0
+    container_name: fuseki
+    environment:
+      ADMIN_PASSWORD: admin
+      JVM_ARGS: -Xmx2g
+    ports:
+      - "3030:3030"
+    volumes:
+      - fuseki_data:/fuseki
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3030/$/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  fuseki-loader:
+    image: curlimages/curl:8.7.1
+    container_name: fuseki-loader
+    depends_on:
+      fuseki:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+    entrypoint: ["/bin/sh", "/scripts/load_ttl.sh"]
+    environment:
+      FUSEKI_URL: http://fuseki:3030
+      FUSEKI_ADMIN_PASSWORD: admin
+      DATASET: forestKG
+      TTL_FILE: /data/schema.ttl
+
+volumes:
+  fuseki_data:

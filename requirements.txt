@@ -1,0 +1,12 @@
+python-dotenv
+groq
+SPARQLWrapper
+pydantic
+fastapi
+uvicorn
+llama-index-core>=0.12
+
+# Evaluation system
+ragas>=0.2
+langchain-openai
+openai

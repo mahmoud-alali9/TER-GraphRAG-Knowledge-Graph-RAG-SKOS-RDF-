@@ -2,6 +2,8 @@ import os
 from groq import Groq
 from openai import OpenAI
 
+from workflow.tracing import traceable
+
 _groq_client    = None
 _together_client = None
 _mistral_client  = None
@@ -34,6 +36,7 @@ def _get_mistral():
         _mistral_client = OpenAI(api_key=key, base_url="https://api.mistral.ai/v1")
     return _mistral_client
 
+@traceable(name="ask_llm", run_type="llm")
 def ask_llm(prompt, system=None, temperature=0.1, model=None, stream=False):
     backend = os.getenv("LLM_BACKEND", "groq").lower()
 

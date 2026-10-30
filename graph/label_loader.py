@@ -1,24 +1,27 @@
-from SPARQLWrapper import SPARQLWrapper, JSON
+from graph.sparql_executor import execute_sparql
+
+CONCEPT_QUERY = """
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?label WHERE { ?s a skos:Concept ; skos:prefLabel ?label . }
+"""
+
+TYPED_LABEL_QUERY = """
+    PREFIX : <http://example.org/forest#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?label WHERE {{ ?s a :{rdf_type} ; rdfs:label ?label . }}
+"""
 
 
 def fetch_all_labels(endpoint, rdf_type):
-    sparql = SPARQLWrapper(endpoint)
-
     if rdf_type == "skos:Concept":
-        sparql.setQuery("""
-            PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-            SELECT ?label WHERE { ?s a skos:Concept ; skos:prefLabel ?label . }
-        """)
+        query = CONCEPT_QUERY
     else:
-        sparql.setQuery(f"""
-            PREFIX : <http://example.org/forest#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT ?label WHERE {{ ?s a :{rdf_type} ; rdfs:label ?label . }}
-        """)
+        query = TYPED_LABEL_QUERY.format(rdf_type=rdf_type)
 
-    sparql.setReturnFormat(JSON)
-    results = sparql.query().convert()
-    return [r["label"]["value"] for r in results["results"]["bindings"]]
+    bindings, error = execute_sparql(endpoint, query)
+    if error:
+        raise RuntimeError(f"Could not load {rdf_type} labels: {error}")
+    return [r["label"]["value"] for r in bindings]
 
 
 def load_all_labels(endpoint):

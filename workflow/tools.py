@@ -10,18 +10,22 @@ from workflow.nerd_linking import find_jurisdiction
 from workflow.planner import plan_query
 from workflow.prompts import answer_prompt
 from workflow.retriever import retrieve
+from workflow.tracing import traceable
 
 
 class WorkflowTools:
     def load_labels(self, endpoint: str) -> dict:
         return load_all_labels(endpoint)
 
+    @traceable(name="plan_query", run_type="chain")
     def create_query_plan(self, question: str, labels: dict, resolved_jurisdictions: list[str] = None) -> dict:
         return plan_query(question, labels, resolved_jurisdictions)
 
+    @traceable(name="link_jurisdiction", run_type="tool")
     def link_jurisdictions(self, question: str, labels: list[str], endpoint: str) -> list[str]:
         return find_jurisdiction(question, labels, endpoint)
 
+    @traceable(name="retrieve_context", run_type="retriever")
     def retrieve_context(self, endpoint: str, plan: dict, fallback_jurisdictions: list[str], question: str = "") -> tuple[str, str, str]:
         plan = {**plan, "_question": question}
         context, intent, sparql_query = retrieve(endpoint, plan, fallback_jurisdictions)
@@ -31,6 +35,7 @@ class WorkflowTools:
             sparql_query,
         )
 
+    @traceable(name="generate_answer", run_type="chain")
     def generate_answer(self, *, question: str, context: str, system_prompt: str, temperature: float) -> str:
         if context == "NOT_IN_CORPUS":
             return (

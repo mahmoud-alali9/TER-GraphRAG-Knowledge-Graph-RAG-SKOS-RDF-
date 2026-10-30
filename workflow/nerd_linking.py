@@ -53,7 +53,7 @@ except Exception:
     _COUNTRY_EN_TO_EN = {}
     _HAS_PYCOUNTRY = False
 
-from SPARQLWrapper import SPARQLWrapper, JSON
+from graph.sparql_executor import execute_sparql
 
 STOPWORDS = {
     "what", "is", "the", "in", "of", "a", "an", "are", "how", "does", "do", "can",
@@ -112,9 +112,8 @@ def _resolve_org(question_lower, endpoint):
     """
     for trigger, aliases in ORG_ALIASES.items():
         if trigger in question_lower:
-            sparql = SPARQLWrapper(endpoint)
             for alias in aliases:
-                sparql.setQuery(f"""
+                bindings, error = execute_sparql(endpoint, f"""
                     PREFIX : <http://example.org/forest#>
                     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
                     SELECT ?label WHERE {{
@@ -122,14 +121,11 @@ def _resolve_org(question_lower, endpoint):
                         FILTER(CONTAINS(LCASE(?label), "{alias.lower()}"))
                     }} LIMIT 3
                 """)
-                sparql.setReturnFormat(JSON)
-                try:
-                    results = sparql.query().convert()
-                    matches = [r["label"]["value"] for r in results["results"]["bindings"]]
-                    if matches:
-                        return matches
-                except Exception:
+                if error:
                     continue
+                matches = [r["label"]["value"] for r in bindings]
+                if matches:
+                    return matches
     return []
 
 
@@ -180,8 +176,7 @@ def find_jurisdiction(question, labels, endpoint):
     for kw in keywords:
         if len(kw) < 4:
             continue
-        sparql = SPARQLWrapper(endpoint)
-        sparql.setQuery(f"""
+        bindings, error = execute_sparql(endpoint, f"""
             PREFIX : <http://example.org/forest#>
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
             SELECT ?label WHERE {{
@@ -189,9 +184,9 @@ def find_jurisdiction(question, labels, endpoint):
                 FILTER(CONTAINS(LCASE(?label), "{kw}"))
             }} LIMIT 3
         """)
-        sparql.setReturnFormat(JSON)
-        results = sparql.query().convert()
-        matches = [r["label"]["value"] for r in results["results"]["bindings"]]
+        if error:
+            raise RuntimeError(error)
+        matches = [r["label"]["value"] for r in bindings]
         if matches:
             return matches
 

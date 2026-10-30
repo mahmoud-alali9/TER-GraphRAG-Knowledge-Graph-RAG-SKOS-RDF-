@@ -10,3 +10,21 @@ llama-index-core>=0.12
 ragas>=0.2
 langchain-openai
 openai
+
+# Local graph backend (no Fuseki needed)
+rdflib>=7.0
+
+# Vector baselines: dense (FAISS) + BM25 + hybrid
+faiss-cpu>=1.8
+sentence-transformers>=3.0
+rank-bm25>=0.2.2
+numpy
+
+# MCP server
+mcp[cli]>=1.2   # SDK v1 (FastMCP) and v2 (MCPServer) both supported
+
+# Demo UI
+streamlit>=1.37
+
+# Tracing (optional)
+langsmith>=0.1

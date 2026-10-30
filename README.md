@@ -45,6 +45,11 @@ Question (FR / EN)
 - **Évaluation hybride** — feedback expert (note 1–5) + métriques RAGAS automatisées
 - **API REST** — FastAPI avec documentation Swagger intégrée
 - **Déploiement Docker** — Fuseki + chargeur TTL via Docker Compose
+- **Baselines RAG vectoriel** — recherche dense (FAISS + embeddings multilingues), BM25 et hybride (Reciprocal Rank Fusion), comparées au graphe
+- **Serveur MCP** — le graphe et le pipeline exposés comme outils pour Claude Desktop, Claude Code ou tout agent MCP
+- **Démo Streamlit** — interface pour poser des questions et comparer les retrievers
+- **Traçage LangSmith** (optionnel) — une trace par question, avec chaque étape, ses entrées, sorties et latences
+- **Backend local** — `SPARQL_ENDPOINT=local` lit `data/schema.ttl` avec rdflib, sans Fuseki
 
 ---
 
@@ -169,6 +174,83 @@ python run_server.py          # → http://localhost:8000/docs
 # CLI interactif
 python run.py
 ```
+
+---
+
+## Extensions : RAG vectoriel, MCP, Streamlit, LangSmith
+
+Toutes les commandes ci-dessous marchent **sans Fuseki** grâce au backend local
+(`SPARQL_ENDPOINT=local`, valeur par défaut de ces outils). Avec Fuseki, mettez son URL.
+
+### Recherche dense / BM25 / hybride (`vector/`)
+
+Les 2 553 définitions du graphe sont aussi indexées comme dans un RAG classique :
+
+- **dense** : embeddings `paraphrase-multilingual-MiniLM-L12-v2` (questions en français, textes en anglais) + index FAISS `IndexFlatIP` (cosinus), sauvegardé dans `vector_store/` ;
+- **bm25** : recherche par mots-clés ;
+- **hybrid** : fusion des deux classements par Reciprocal Rank Fusion, `score = Σ 1/(60 + rang)`.
+
+```bash
+python scripts/compare_retrievers.py        # écrit reports/retrieval_comparison.md
+```
+
+Le script mesure, sur les 8 questions de l'évaluation qui citent un pays ou un organisme,
+la part des k définitions retournées qui viennent de la bonne juridiction, et la latence.
+C'est la justification chiffrée du graphe : un RAG vectoriel ramène des définitions
+qui *parlent* de l'UNFCCC au lieu de celles *écrites par* l'UNFCCC.
+
+### Serveur MCP (`mcp_server.py`)
+
+| Outil | Rôle |
+|-------|------|
+| `ask_forest_question` | Pipeline GraphRAG complet, réponse sourcée (nécessite une clé LLM) |
+| `search_definitions` | Recherche dense / BM25 / hybride, sans LLM |
+| `run_sparql` | SPARQL en lecture seule (SELECT / ASK), 50 lignes max |
+| `list_jurisdictions` | Libellés exacts des pays et organisations |
+
+```bash
+mcp dev mcp_server.py          # tester les outils dans MCP Inspector
+python mcp_server.py           # serveur stdio
+```
+
+Claude Desktop (`claude_desktop_config.json`) :
+
+```json
+{
+  "mcpServers": {
+    "forest-graphrag": {
+      "command": "python",
+      "args": ["/chemin/vers/le/projet/mcp_server.py"],
+      "env": { "SPARQL_ENDPOINT": "local", "GROQ_API_KEY": "..." }
+    }
+  }
+}
+```
+
+Claude Code : `claude mcp add forest-graphrag -- python /chemin/vers/le/projet/mcp_server.py`
+
+### Démo Streamlit (`streamlit_app.py`)
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Onglet **Assistant** : réponse sourcée, intention, requête SPARQL et contexte.
+Onglet **Comparer les retrievers** : la même requête en dense, BM25 et hybride, côte à côte (sans clé LLM).
+
+### Traçage LangSmith
+
+Ajoutez dans `.env` :
+
+```
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...
+LANGSMITH_PROJECT=forest-graphrag
+```
+
+Chaque question devient une trace `forest_graphrag` avec une sous-étape par appel
+(`link_jurisdiction`, `plan_query`, `retrieve_context`, `generate_answer`, `ask_llm`).
+Sans ces variables, le traçage est désactivé et LangSmith n'est pas requis.
 
 ---
 
@@ -325,3 +407,7 @@ Tous les paramètres sont dans `config.py` et surchargeables via `.env` :
 | Base évaluation | SQLite |
 | Liaison d'entités | pycountry + Babel + difflib |
 | Conteneurisation | Docker + Docker Compose |
+| Recherche vectorielle | FAISS + sentence-transformers (multilingual MiniLM), BM25, fusion RRF |
+| Protocole agents | MCP (Model Context Protocol, SDK Python FastMCP) |
+| Démo | Streamlit |
+| Observabilité | LangSmith (optionnel) |
